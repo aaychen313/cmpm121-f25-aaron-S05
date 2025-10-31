@@ -1,73 +1,120 @@
 // CMPM 121 Smelly Code Activity
 
-// This variable keeps track of the counter
-let c = 0;
+type ButtonAction = "inc" | "dec" | "reset";
 
-// These constants are for button IDs and heading text
-const a = "increment", b = "counter", h = "CMPM 121 Project";
+// // Centralized constants to avoid magic strings sprinkled around.
+const TEXT = {
+  heading: "CMPM 121 Project",
+  label: "Counter: ",
+  incButton: "Click Me!",
+  decButton: "Decrement",
+  resetButton: "Reset",
+  titlePrefix: "Clicked ",
+};
 
-function setup() {
-  // Create the HTML for the counter
-  document.body.innerHTML = `
-    <h1>${h}</h1>
-    <p>Counter: <span id="${b}">0</span></p>
-    <button id="${a}">Click Me!</button>
-    <button id="dec">Decrement</button>
-    <button id="reset">Reset</button>
-  `;
+const IDS = {
+  counter: "counter",
+  root: "app-root",
+} as const;
 
-  // Get the increment button element from the document
-  const bI = document.getElementById(a);
-  // Get the decrement button element from the document
-  const bD = document.getElementById("dec");
-  // Get the reset button element from the document
-  const bR = document.getElementById("reset");
-  // Get the counter span element from the document
-  const ctr = document.getElementById(b);
+const COLORS = {
+  odd: "pink",
+  even: "lightblue",
+} as const;
 
-  // Check if any element is missing, then exit the function
-  if (!bI || !bD || !bR || !ctr) return;
-
-  // Add click event to the increment button
-  bI.addEventListener("click", () => {
-    // Increase the counter by 1
-    c++;
-    // Update the counter display
-    ctr.innerHTML = `${c}`;
-    // Update the document title
-    document.title = "Clicked " + c;
-    // Change the background color based on even/odd count
-    document.body.style.backgroundColor = c % 2 ? "pink" : "lightblue";
-  });
-
-  // Add click event to the decrement button
-  bD.addEventListener("click", () => {
-    // Decrease the counter by 1
-    c--;
-    // Update the counter display
-    ctr.innerHTML = `${c}`;
-    // Update the document title
-    document.title = "Clicked " + c;
-    // Change the background color based on even/odd count
-    document.body.style.backgroundColor = c % 2 ? "pink" : "lightblue";
-  });
-
-  // Add click event to the reset button
-  bR.addEventListener("click", () => {
-    // Reset the counter to 0
-    c = 0;
-    // Update the counter display
-    ctr.innerHTML = `${c}`;
-    // Update the document title
-    document.title = "Clicked " + c;
-    // Change the background color based on even/odd count
-    document.body.style.backgroundColor = c % 2 ? "pink" : "lightblue";
-  });
+interface AppState {
+  count: number;
 }
 
-function start() {
-  // Call setup to initialize the UI
+// Single source of truth for state.
+const state: AppState = { count: 0 };
+
+// helpers
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, options?: {
+  id?: string;
+  text?: string;
+  attrs?: Record<string, string>;
+}): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (options?.id) node.id = options.id;
+  if (options?.text != null) node.textContent = options.text;
+  if (options?.attrs) {
+    for (const [k, v] of Object.entries(options.attrs)) {
+      node.setAttribute(k, v);
+    }
+  }
+  return node;
+}
+
+function render(): void {
+  const counter = document.getElementById(IDS.counter);
+  if (counter) counter.textContent = String(state.count);
+
+  // Title mirrors original behavior: "Clicked X"
+  document.title = TEXT.titlePrefix + state.count;
+
+  // Background color: odd -> pink, even -> lightblue
+  document.body.style.backgroundColor = state.count % 2
+    ? COLORS.odd
+    : COLORS.even;
+}
+
+// Reducers change only state; the rest of the world updates via render()
+const reducers = {
+  inc() {
+    state.count += 1;
+  },
+  dec() {
+    state.count -= 1;
+  },
+  reset() {
+    state.count = 0;
+  },
+} satisfies Record<ButtonAction, () => void>;
+
+function dispatch(action: ButtonAction): void {
+  reducers[action]();
+  render();
+}
+
+// applies an action, then re-renders
+function setup(): void {
+  const root = el("div", { id: IDS.root });
+  const heading = el("h1", { text: TEXT.heading });
+
+  const p = el("p");
+  p.append(TEXT.label);
+  p.append(el("span", { id: IDS.counter, text: "0" }));
+
+  const btnInc = el("button", {
+    text: TEXT.incButton,
+    attrs: { "data-action": "inc" },
+  });
+  const btnDec = el("button", {
+    text: TEXT.decButton,
+    attrs: { "data-action": "dec" },
+  });
+  const btnReset = el("button", {
+    text: TEXT.resetButton,
+    attrs: { "data-action": "reset" },
+  });
+
+  // Event delegation to avoid three near-identical listeners.
+  root.addEventListener("click", (ev) => {
+    const t = ev.target as HTMLElement | null;
+    const action = t?.getAttribute("data-action") as ButtonAction | null;
+    if (action) dispatch(action);
+  });
+
+  root.append(heading, p, btnInc, btnDec, btnReset);
+  document.body.replaceChildren(root);
+
+  // Initial paint
+  render();
+}
+
+// entry point
+function start(): void {
   setup();
 }
-// Start the counter app
 start();
